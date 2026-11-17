@@ -14,11 +14,35 @@ logger = logging.getLogger(__name__)
 # Claude configuration
 # ============================================================
 
-MODEL = (
-    os.getenv("ANTHROPIC_MODEL", "").strip()
-    or os.getenv("CLAUDE_MODEL", "").strip()
-    or "claude-sonnet-4-20250514"
-)
+DEFAULT_MODEL = "claude-sonnet-5"
+
+
+def resolve_model(explicit: str | None = None) -> str:
+    """
+    Resolve the Claude model dynamically at call time.
+
+    Precedence:
+    1. explicit argument (per-call selection)
+    2. CLAUDE_MODEL env (per-instance selected model)
+    3. ANTHROPIC_MODEL env (shared repository variable)
+    4. ANTHROPIC_DEFAULT_MODEL env
+    5. DEFAULT_MODEL
+    """
+
+    value = (
+        (explicit or "").strip()
+        or os.getenv("CLAUDE_MODEL", "").strip()
+        or os.getenv("ANTHROPIC_MODEL", "").strip()
+        or os.getenv("ANTHROPIC_DEFAULT_MODEL", "").strip()
+        or DEFAULT_MODEL
+    )
+
+    if not value:
+        raise RuntimeError(
+            "Claude model is not configured."
+        )
+
+    return value
 
 api_key = (
     os.getenv("ANTHROPIC_AUTH_TOKEN", "").strip()
@@ -47,16 +71,11 @@ if not base_url.startswith(("http://", "https://")):
         f"Invalid ANTHROPIC_BASE_URL: {base_url!r}"
     )
 
-if not MODEL:
-    raise RuntimeError(
-        "Claude model is not configured."
-    )
-
-
 logger.info(
-    "Claude configuration: model=%s base_url=%s",
-    MODEL,
+    "Claude configuration: base_url=%s model resolved dynamically "
+    "(default=%s)",
     base_url,
+    DEFAULT_MODEL,
 )
 
 
@@ -194,6 +213,7 @@ def review_code(
     selected_skills: list[str] | None = None,
     review_mode: str = "PR",
     repository_context: str = "",
+    model: str | None = None,
     **kwargs: Any,
 ):
     # Load ONLY the skills selected by the user
@@ -276,10 +296,12 @@ The top-level JSON object MUST include these keys:
 Never return a bare array. Never omit any required key.
 """
 
-    logger.info(f"Calling Claude model: {MODEL}")
+    active_model = resolve_model(model or kwargs.get("model"))
+
+    logger.info(f"Calling Claude model: {active_model}")
 
     response = client.messages.create(
-        model=MODEL,
+        model=active_model,
         max_tokens=8192,
         thinking={
         "type": "disabled"
