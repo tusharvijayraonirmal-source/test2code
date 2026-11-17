@@ -556,6 +556,19 @@ def main() -> int:
     )
 
     parser.add_argument(
+        "--model",
+        default=(
+            os.getenv("CLAUDE_MODEL", "").strip()
+            or os.getenv("ANTHROPIC_MODEL", "").strip()
+        ),
+        help=(
+            "Claude model to use. Falls back to the "
+            "CLAUDE_MODEL / ANTHROPIC_MODEL environment "
+            "variables when not provided."
+        ),
+    )
+
+    parser.add_argument(
         "--output-file",
         default="review_result.json",
         help="Output JSON file",
@@ -591,6 +604,7 @@ def main() -> int:
             review_mode=args.review_mode,
             skills=selected_skills,
             repository_context=args.repository_context or "",
+            model=args.model or None,
         )
         validate_review_result(review)
 
